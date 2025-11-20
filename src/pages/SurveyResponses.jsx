@@ -10,6 +10,8 @@ import {
   FaUser,
   FaHeadphones,
   FaCheckCircle,
+  FaMapMarkerAlt,
+  FaLocationArrow,
 } from "react-icons/fa";
 import { useTheme } from "../context/ThemeContext";
 import {
@@ -122,9 +124,7 @@ function SurveyDetailPanel({
       list = list.filter(
         (r) => (r.approvalStatus || "PENDING") === "PENDING"
       );
-    } else if (
-      APPROVAL_OPTIONS.some((o) => o.value === responseFilter)
-    ) {
+    } else if (APPROVAL_OPTIONS.some((o) => o.value === responseFilter)) {
       list = list.filter(
         (r) => (r.approvalStatus || "PENDING") === responseFilter
       );
@@ -133,12 +133,7 @@ function SurveyDetailPanel({
     const q = responseSearch.trim().toLowerCase();
     if (q) {
       list = list.filter((r) => {
-        const values = [
-          r.userName,
-          r.userCode,
-          r.userMobile,
-          r.userRole,
-        ]
+        const values = [r.userName, r.userCode, r.userMobile, r.userRole]
           .filter(Boolean)
           .map((v) => String(v).toLowerCase());
         return values.some((v) => v.includes(q));
@@ -146,10 +141,11 @@ function SurveyDetailPanel({
     }
 
     // latest first
-    return list.slice().sort(
-      (a, b) =>
-        new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
-    );
+    return list
+      .slice()
+      .sort(
+        (a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
+      );
   }, [responses, responseFilter, responseSearch]);
 
   return (
@@ -185,8 +181,7 @@ function SurveyDetailPanel({
             className="text-[11px] mt-1 opacity-70"
             style={{ color: themeColors.text }}
           >
-            Status:{" "}
-            <span className="font-semibold">{survey.status}</span>
+            Status: <span className="font-semibold">{survey.status}</span>
             {survey.category && ` · Category: ${survey.category}`}
             {survey.projectName && ` · Project: ${survey.projectName}`}
           </p>
@@ -285,10 +280,7 @@ function SurveyDetailPanel({
         {APPROVAL_OPTIONS.map((opt) => {
           const count = byStatusCounts[opt.value] || 0;
           if (!count) return null;
-          const chipStyle = getApprovalChipStyle(
-            opt.value,
-            themeColors
-          );
+          const chipStyle = getApprovalChipStyle(opt.value, themeColors);
           return (
             <span
               key={opt.value}
@@ -299,8 +291,7 @@ function SurveyDetailPanel({
               }}
             >
               {opt.value === "CORRECTLY_DONE" && <FaCheckCircle />}
-              {opt.label}:{" "}
-              <span className="font-semibold">{count}</span>
+              {opt.label}: <span className="font-semibold">{count}</span>
             </span>
           );
         })}
@@ -371,13 +362,35 @@ function SurveyDetailPanel({
         {filteredResponses.map((resp, idx) => {
           const status = resp.approvalStatus || "PENDING";
           const label = APPROVAL_LABELS[status] || status;
-          const chipStyle = getApprovalChipStyle(
-            status,
-            themeColors
-          );
+          const chipStyle = getApprovalChipStyle(status, themeColors);
 
           const answerCount = (resp.answers || []).length;
           const isAudioOpen = openAudioId === resp.responseId;
+
+          const lat =
+            typeof resp.latitude === "number"
+              ? resp.latitude
+              : resp.latitude != null
+              ? Number(resp.latitude)
+              : null;
+          const lng =
+            typeof resp.longitude === "number"
+              ? resp.longitude
+              : resp.longitude != null
+              ? Number(resp.longitude)
+              : null;
+          const hasLocation =
+            lat != null && !Number.isNaN(lat) && lng != null && !Number.isNaN(lng);
+
+          let mapSrc = "";
+          if (hasLocation) {
+            const delta = 0.01;
+            const left = lng - delta;
+            const bottom = lat - delta;
+            const right = lng + delta;
+            const top = lat + delta;
+            mapSrc = `https://www.openstreetmap.org/export/embed.html?bbox=${left}%2C${bottom}%2C${right}%2C${top}&layer=mapnik&marker=${lat}%2C${lng}`;
+          }
 
           return (
             <div
@@ -389,8 +402,8 @@ function SurveyDetailPanel({
               }}
             >
               {/* header row */}
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <div>
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                <div className="flex-1 min-w-0">
                   <p
                     className="text-xs font-semibold flex items-center gap-2"
                     style={{ color: themeColors.text }}
@@ -406,6 +419,25 @@ function SurveyDetailPanel({
                     {resp.userMobile ? ` · ${resp.userMobile}` : ""}
                     {resp.userRole ? ` · ${resp.userRole}` : ""}
                   </p>
+
+                  {/* Location line */}
+                  {hasLocation && (
+                    <p
+                      className="text-[11px] opacity-80 mt-1 flex items-center gap-1"
+                      style={{ color: themeColors.text }}
+                    >
+                      <FaMapMarkerAlt className="text-[10px]" />
+                      Lat:{" "}
+                      <span className="font-mono">
+                        {lat.toFixed(4)}
+                      </span>
+                      , Lng:{" "}
+                      <span className="font-mono">
+                        {lng.toFixed(4)}
+                      </span>
+                    </p>
+                  )}
+
                   <p
                     className="text-[11px] opacity-70 mt-1"
                     style={{ color: themeColors.text }}
@@ -450,8 +482,8 @@ function SurveyDetailPanel({
                   </div>
                 </div>
 
-                {/* Right controls */}
-                <div className="flex flex-col sm:items-end gap-2 min-w-[220px]">
+                {/* Right controls: audio + map + approval select */}
+                <div className="flex flex-col gap-2 sm:w-64">
                   {resp.audioUrl && (
                     <>
                       <button
@@ -461,7 +493,7 @@ function SurveyDetailPanel({
                             prev === resp.responseId ? null : resp.responseId
                           )
                         }
-                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border text-[11px] font-semibold self-start sm:self-auto"
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border text-[11px] font-semibold self-start sm:self-stretch justify-center"
                         style={{
                           borderColor: themeColors.primary,
                           color: themeColors.primary,
@@ -485,7 +517,45 @@ function SurveyDetailPanel({
                     </>
                   )}
 
-                  <div className="flex flex-col gap-1 w-full">
+                  {/* Map preview */}
+                  {hasLocation && (
+                    <div
+                      className="mt-1 w-full rounded-lg overflow-hidden border"
+                      style={{
+                        borderColor: themeColors.border,
+                        backgroundColor: themeColors.surface,
+                      }}
+                    >
+                      <div className="h-28 w-full">
+                        <iframe
+                          title={`location-${resp.responseId || idx}`}
+                          src={mapSrc}
+                          className="w-full h-full border-0"
+                          loading="lazy"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          window.open(
+                            `https://www.google.com/maps?q=${lat},${lng}`,
+                            "_blank"
+                          )
+                        }
+                        className="w-full text-[11px] flex items-center justify-center gap-1 px-2 py-1 border-t"
+                        style={{
+                          borderColor: themeColors.border,
+                          color: themeColors.primary,
+                          backgroundColor: themeColors.surface,
+                        }}
+                      >
+                        <FaLocationArrow className="text-[10px]" />
+                        Open in Maps
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="flex flex-col gap-1 w-full mt-1">
                     <label
                       className="text-[11px] opacity-70"
                       style={{ color: themeColors.text }}
@@ -538,13 +608,10 @@ function SurveyDetailPanel({
                     answerText = a.answerText || "-";
                   } else if (a.questionType === "RATING") {
                     answerText =
-                      typeof a.rating === "number"
-                        ? String(a.rating)
-                        : "-";
+                      typeof a.rating === "number" ? String(a.rating) : "-";
                   } else {
                     const opts = a.selectedOptions || [];
-                    answerText =
-                      opts.length > 0 ? opts.join(", ") : "-";
+                    answerText = opts.length > 0 ? opts.join(", ") : "-";
                   }
 
                   return (
@@ -573,9 +640,7 @@ function SurveyDetailPanel({
                           className="text-xs mt-1"
                           style={{ color: themeColors.text }}
                         >
-                          <span className="font-semibold">
-                            Answer:{" "}
-                          </span>
+                          <span className="font-semibold">Answer: </span>
                           {answerText}
                         </p>
                       </div>
@@ -700,9 +765,8 @@ export default function SurveyResponses() {
   }, [surveys, search, statusFilter]);
 
   const selectedSurveyDetail =
-    surveys.find(
-      (sv) => String(sv.surveyId) === String(selectedSurveyId)
-    ) || null;
+    surveys.find((sv) => String(sv.surveyId) === String(selectedSurveyId)) ||
+    null;
 
   // Set approvalStatus for a response (PUBLIC API)
   const handleSetApproval = async (responseId, approvalStatus) => {
@@ -783,7 +847,7 @@ export default function SurveyResponses() {
             style={{ color: themeColors.text }}
           >
             Dekho kaun-kaun se surveys pe kitne responses aaye, filter karo
-            approval ke hisaab se, aur detail answers + audio review karo.
+            approval ke hisaab se, location + audio ke saath detail review karo.
           </p>
         </div>
       </div>
