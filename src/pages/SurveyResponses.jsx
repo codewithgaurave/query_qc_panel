@@ -1025,38 +1025,58 @@ export default function SurveyResponses() {
       (r) => String(r.responseId) === String(selectedResponseId)
     );
 
-  // Set approvalStatus for a response (PUBLIC API)
-  const handleSetApproval = async (responseId, approvalStatus) => {
-    try {
-      setApprovingId(responseId);
-      const res = await setSurveyResponseApproval(responseId, approvalStatus);
-      toast.success(res?.message || "Response status updated successfully");
+// handleSetApproval ko replace karo:
+const handleSetApproval = async (responseId, approvalStatus) => {
+  try {
+    setApprovingId(responseId);
+    const res = await setSurveyResponseApproval(responseId, approvalStatus);
+    toast.success(res?.message || "Response status updated successfully");
 
-      // Update local state
-      setSurveys((prev) =>
-        (prev || []).map((sv) => ({
-          ...sv,
-          responses: (sv.responses || []).map((r) =>
-            r.responseId === responseId
-              ? {
-                  ...r,
-                  approvalStatus,
-                  isApproved: approvalStatus === "CORRECTLY_DONE",
-                }
-              : r
-          ),
-        }))
-      );
-    } catch (err) {
-      const msg =
-        err?.response?.data?.message ||
-        err?.message ||
-        "Failed to update response status.";
-      toast.error(msg);
-    } finally {
-      setApprovingId(null);
-    }
-  };
+    const updatedFromServer = res?.response;
+
+    // Update local state – agar server se detailed response aaya hai to usko merge karo
+    setSurveys((prev) =>
+      (prev || []).map((sv) => ({
+        ...sv,
+        responses: (sv.responses || []).map((r) => {
+          if (r.responseId !== responseId) return r;
+
+          // Basic fields to update
+          const baseUpdate = {
+            approvalStatus,
+            isApproved: approvalStatus === "CORRECTLY_DONE",
+          };
+
+          // Agar server ne extra fields bheje (approvedBy, approvedAt, etc.) to merge karo
+          if (updatedFromServer) {
+            return {
+              ...r,
+              ...baseUpdate,
+              approvedBy: updatedFromServer.approvedBy,
+              approvedAt: updatedFromServer.approvedAt,
+              updatedAt: updatedFromServer.updatedAt,
+              updatedAtIST: updatedFromServer.updatedAtIST,
+            };
+          }
+
+          return {
+            ...r,
+            ...baseUpdate,
+          };
+        }),
+      }))
+    );
+  } catch (err) {
+    const msg =
+      err?.response?.data?.message ||
+      err?.message ||
+      "Failed to update response status.";
+    toast.error(msg);
+  } finally {
+    setApprovingId(null);
+  }
+};
+
 
   // ---- UI ----
   if (loading) {

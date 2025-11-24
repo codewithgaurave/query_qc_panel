@@ -6,12 +6,18 @@ const http = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
-// Attach token for every request
+// Attach QE token for every request
 http.interceptors.request.use((config) => {
-  const token = localStorage.getItem("admin-token");
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+  // 🔥 Sirf QE ka token (user-token) use karenge
+  const userToken = localStorage.getItem("user-token");
+
+  if (userToken) {
+    config.headers.Authorization = `Bearer ${userToken}`;
+  } else {
+    // Optional: agar token hi nahi hai to header hata do
+    delete config.headers.Authorization;
   }
+
   return config;
 });
 

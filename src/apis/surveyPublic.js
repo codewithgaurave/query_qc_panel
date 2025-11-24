@@ -11,23 +11,15 @@ export const listAllPublicSurveyResponses = async () => {
 };
 
 /**
- * PATCH /survey/public/responses/:responseId/approval
+ * PATCH /survey/responses/:responseId/approval   ⬅️ QE protected route
  * body: { approvalStatus: string }
- *
- * approvalStatus options:
- * - "PENDING"
- * - "CORRECTLY_DONE"
- * - "NOT_ASKING_ALL_QUESTIONS"
- * - "NOT_DOING_IT_PROPERLY"
- * - "TAKING_FROM_FRIENDS_OR_TEAMMATE"
- * - "FAKE_OR_EMPTY_AUDIO"
  */
 export const setSurveyResponseApproval = async (
   responseId,
   approvalStatus
 ) => {
   const { data } = await http.patch(
-    `/survey/public/responses/${responseId}/approval`,
+    `/survey/responses/${responseId}/approval`,
     { approvalStatus }
   );
   return data; // { message, response }
