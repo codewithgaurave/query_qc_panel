@@ -21,6 +21,22 @@ import {
   setSurveyResponseApproval,
 } from "../apis/surveyPublic";
 
+// ⬇️ Leaflet imports for multi-pin map
+import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import "leaflet/dist/leaflet.css";
+import L from "leaflet";
+import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
+import markerIcon from "leaflet/dist/images/marker-icon.png";
+import markerShadow from "leaflet/dist/images/marker-shadow.png";
+
+// Fix default icon paths (Vite/CRA build ke liye zaroori)
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: markerIcon2x,
+  iconUrl: markerIcon,
+  shadowUrl: markerShadow,
+});
+
 const fmtDateTime = (d) => {
   if (!d) return "-";
   try {
@@ -365,7 +381,6 @@ function UserSubmissionsPanel({
     userResponses,
     filteredResponses,
     locs,
-    mapSrc,
     centreLat,
     centreLng,
   } = useMemo(() => {
@@ -391,7 +406,7 @@ function UserSubmissionsPanel({
       );
     }
 
-    // locations from filtered list
+    // locations from filtered list – response wise
     const locs = list
       .map((r) => {
         const lat =
@@ -413,13 +428,17 @@ function UserSubmissionsPanel({
           Number.isNaN(lng)
         )
           return null;
-        return { lat, lng };
+        return {
+          lat,
+          lng,
+          responseId: r.responseId,
+          createdAt: r.createdAt,
+        };
       })
       .filter(Boolean);
 
     let centreLat = null;
     let centreLng = null;
-    let mapSrc = "";
 
     if (locs.length > 0) {
       const sum = locs.reduce(
@@ -432,19 +451,12 @@ function UserSubmissionsPanel({
       );
       centreLat = sum.lat / locs.length;
       centreLng = sum.lng / locs.length;
-      const delta = 0.05;
-      const left = centreLng - delta;
-      const bottom = centreLat - delta;
-      const right = centreLng + delta;
-      const top = centreLat + delta;
-      mapSrc = `https://www.openstreetmap.org/export/embed.html?bbox=${left}%2C${bottom}%2C${right}%2C${top}&layer=mapnik&marker=${centreLat}%2C${centreLng}`;
     }
 
     return {
       userResponses: allResponses,
       filteredResponses: list,
       locs,
-      mapSrc,
       centreLat,
       centreLng,
     };
@@ -668,14 +680,42 @@ function UserSubmissionsPanel({
                 : "No location data available for current filters"}
             </p>
           </div>
-          <div className="flex-1">
-            {mapSrc ? (
-              <iframe
-                title="user-locations-map"
-                src={mapSrc}
-                className="w-full h-full border-0"
-                loading="lazy"
-              />
+
+          {/* Multi-pin Leaflet map with jitter so sare markers dikh jayein */}
+          <div className="flex-1 min-h-[300px]">
+            {locs.length > 0 && centreLat != null && centreLng != null ? (
+              <MapContainer
+                center={[centreLat, centreLng]}
+                zoom={13}
+                scrollWheelZoom={false}
+                className="w-full h-full rounded-b-2xl"
+                style={{ minHeight: 300 }}
+              >
+                <TileLayer
+                  attribution='&copy; OpenStreetMap contributors'
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+                {locs.map((p, idx) => {
+                  // Jitter so they don't overlap if same coordinate
+                  const total = locs.length;
+                  const radius = total > 1 ? 0.0003 : 0; // ~30–35m
+                  const angle = (2 * Math.PI * idx) / total;
+                  const latOffset = radius * Math.cos(angle);
+                  const lngOffset = radius * Math.sin(angle);
+
+                  const position = [p.lat + latOffset, p.lng + lngOffset];
+
+                  return (
+                    <Marker key={p.responseId || idx} position={position}>
+                      <Popup>
+                        Entry #{p.responseId}
+                        <br />
+                        {fmtDateTime(p.createdAt)}
+                      </Popup>
+                    </Marker>
+                  );
+                })}
+              </MapContainer>
             ) : (
               <div className="h-full flex items-center justify-center px-3 text-center">
                 <p
@@ -687,6 +727,7 @@ function UserSubmissionsPanel({
               </div>
             )}
           </div>
+
           {centreLat != null && centreLng != null && (
             <button
               type="button"
@@ -810,7 +851,7 @@ function SurveyUserListPanel({
         </div>
       </div>
 
-      {/* Users table  (AC / LokSabha removed) */}
+      {/* Users table */}
       <div
         className="rounded-2xl border shadow-sm overflow-hidden"
         style={{
@@ -1025,58 +1066,55 @@ export default function SurveyResponses() {
       (r) => String(r.responseId) === String(selectedResponseId)
     );
 
-// handleSetApproval ko replace karo:
-const handleSetApproval = async (responseId, approvalStatus) => {
-  try {
-    setApprovingId(responseId);
-    const res = await setSurveyResponseApproval(responseId, approvalStatus);
-    toast.success(res?.message || "Response status updated successfully");
+  // handleSetApproval
+  const handleSetApproval = async (responseId, approvalStatus) => {
+    try {
+      setApprovingId(responseId);
+      const res = await setSurveyResponseApproval(responseId, approvalStatus);
+      toast.success(res?.message || "Response status updated successfully");
 
-    const updatedFromServer = res?.response;
+      const updatedFromServer = res?.response;
 
-    // Update local state – agar server se detailed response aaya hai to usko merge karo
-    setSurveys((prev) =>
-      (prev || []).map((sv) => ({
-        ...sv,
-        responses: (sv.responses || []).map((r) => {
-          if (r.responseId !== responseId) return r;
+      // Update local state
+      setSurveys((prev) =>
+        (prev || []).map((sv) => ({
+          ...sv,
+          responses: (sv.responses || []).map((r) => {
+            if (r.responseId !== responseId) return r;
 
-          // Basic fields to update
-          const baseUpdate = {
-            approvalStatus,
-            isApproved: approvalStatus === "CORRECTLY_DONE",
-          };
+            const baseUpdate = {
+              approvalStatus,
+              isApproved: approvalStatus === "CORRECTLY_DONE",
+            };
 
-          // Agar server ne extra fields bheje (approvedBy, approvedAt, etc.) to merge karo
-          if (updatedFromServer) {
+            if (updatedFromServer) {
+              return {
+                ...r,
+                ...baseUpdate,
+                approvedBy: updatedFromServer.approvedBy,
+                approvedAt: updatedFromServer.approvedAt,
+                updatedAt: updatedFromServer.updatedAt,
+                updatedAtIST: updatedFromServer.updatedAtIST,
+              };
+            }
+
             return {
               ...r,
               ...baseUpdate,
-              approvedBy: updatedFromServer.approvedBy,
-              approvedAt: updatedFromServer.approvedAt,
-              updatedAt: updatedFromServer.updatedAt,
-              updatedAtIST: updatedFromServer.updatedAtIST,
             };
-          }
-
-          return {
-            ...r,
-            ...baseUpdate,
-          };
-        }),
-      }))
-    );
-  } catch (err) {
-    const msg =
-      err?.response?.data?.message ||
-      err?.message ||
-      "Failed to update response status.";
-    toast.error(msg);
-  } finally {
-    setApprovingId(null);
-  }
-};
-
+          }),
+        }))
+      );
+    } catch (err) {
+      const msg =
+        err?.response?.data?.message ||
+        err?.message ||
+        "Failed to update response status.";
+      toast.error(msg);
+    } finally {
+      setApprovingId(null);
+    }
+  };
 
   // ---- UI ----
   if (loading) {
