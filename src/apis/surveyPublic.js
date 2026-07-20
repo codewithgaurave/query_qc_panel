@@ -2,11 +2,11 @@
 import http from "./http";
 
 /**
- * GET /survey/public/responses/all
- * Sabhi surveys + unke saare responses + user + approval info
+ * GET /survey/qc/responses/assigned
+ * Sabhi surveys + unke saare responses + user + approval info jisme ye QC assigned hai
  */
 export const listAllPublicSurveyResponses = async () => {
-  const { data } = await http.get("/survey/public/responses/all");
+  const { data } = await http.get("/survey/qc/responses/assigned");
   return data; // { surveys: [...] }
 };
 
