@@ -14,6 +14,9 @@ import {
   FaLocationArrow,
   FaEye,
   FaArrowLeft,
+  FaCopy,
+  FaShareAlt,
+  FaExternalLinkAlt,
 } from "react-icons/fa";
 import { useTheme } from "../context/ThemeContext";
 import {
@@ -47,6 +50,70 @@ const fmtDateTime = (d) => {
     })}`;
   } catch {
     return "-";
+  }
+};
+
+const handleCopyAudioLink = (audioUrl) => {
+  if (!audioUrl) {
+    toast.error("Audio URL not available");
+    return;
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard
+      .writeText(audioUrl)
+      .then(() => {
+        toast.success("Audio link copied to clipboard!");
+      })
+      .catch(() => {
+        fallbackCopyText(audioUrl);
+      });
+  } else {
+    fallbackCopyText(audioUrl);
+  }
+};
+
+const fallbackCopyText = (text) => {
+  try {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";
+    textArea.style.top = "0";
+    textArea.style.left = "0";
+    textArea.style.opacity = "0";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    const successful = document.execCommand("copy");
+    document.body.removeChild(textArea);
+    if (successful) {
+      toast.success("Audio link copied to clipboard!");
+    } else {
+      toast.error("Failed to copy link");
+    }
+  } catch (err) {
+    toast.error("Could not copy link");
+  }
+};
+
+const handleShareAudioLink = async (audioUrl, title = "Audio Recording") => {
+  if (!audioUrl) {
+    toast.error("Audio URL not available");
+    return;
+  }
+  if (navigator.share) {
+    try {
+      await navigator.share({
+        title: title,
+        text: `QC Audio Recording Link: ${audioUrl}`,
+        url: audioUrl,
+      });
+    } catch (err) {
+      if (err.name !== "AbortError") {
+        handleCopyAudioLink(audioUrl);
+      }
+    }
+  } else {
+    handleCopyAudioLink(audioUrl);
   }
 };
 
@@ -224,14 +291,71 @@ function ResponseDetailPanel({
         {/* Right: audio + approval + map small */}
         <div className="space-y-2">
           {response.audioUrl && (
-            <div>
-              <p
-                className="text-[11px] mb-1 opacity-70"
-                style={{ color: themeColors.text }}
-              >
-                Audio Recording
-              </p>
-              <audio controls className="w-full" src={response.audioUrl}>
+            <div
+              className="p-3 rounded-xl border space-y-2"
+              style={{
+                borderColor: themeColors.border,
+                backgroundColor: themeColors.background,
+              }}
+            >
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <p
+                  className="text-[11px] font-semibold opacity-80 flex items-center gap-1.5"
+                  style={{ color: themeColors.text }}
+                >
+                  <FaHeadphones className="text-blue-500" />
+                  <span>Audio Recording</span>
+                </p>
+
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => handleCopyAudioLink(response.audioUrl)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-all active:scale-95 shadow-xs cursor-pointer"
+                    style={{
+                      borderColor: themeColors.border,
+                      backgroundColor: themeColors.surface,
+                      color: themeColors.text,
+                    }}
+                    title="Copy Audio Link"
+                  >
+                    <FaCopy className="text-[10px]" />
+                    <span>Copy Link</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleShareAudioLink(
+                        response.audioUrl,
+                        `Audio Entry #${response.responseId}`
+                      )
+                    }
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold text-white transition-all active:scale-95 shadow-xs bg-blue-600 hover:bg-blue-700 cursor-pointer"
+                    title="Share Link (Mobile & Desktop)"
+                  >
+                    <FaShareAlt className="text-[10px]" />
+                    <span>Share</span>
+                  </button>
+
+                  <a
+                    href={response.audioUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold border transition-all active:scale-95 shadow-xs"
+                    style={{
+                      borderColor: themeColors.border,
+                      backgroundColor: themeColors.surface,
+                      color: themeColors.text,
+                    }}
+                    title="Open Audio in New Tab"
+                  >
+                    <FaExternalLinkAlt className="text-[9px]" />
+                  </a>
+                </div>
+              </div>
+
+              <audio controls className="w-full rounded-md" src={response.audioUrl}>
                 Your browser does not support the audio element.
               </audio>
             </div>
@@ -622,19 +746,37 @@ function UserSubmissionsPanel({
                           </span>
                         </td>
                         <td className="px-3 py-2 text-right">
-                          <button
-                            type="button"
-                            onClick={() => onOpenResponse(resp.responseId)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border text-[11px] font-semibold"
-                            style={{
-                              borderColor: themeColors.primary,
-                              backgroundColor: themeColors.surface,
-                              color: themeColors.primary,
-                            }}
-                          >
-                            <FaEye />
-                            View / Update
-                          </button>
+                          <div className="flex items-center justify-end gap-1.5">
+                            {resp.audioUrl && (
+                              <button
+                                type="button"
+                                onClick={() => handleShareAudioLink(resp.audioUrl, `Audio Entry #${resp.responseId}`)}
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-[11px] font-semibold cursor-pointer"
+                                style={{
+                                  borderColor: themeColors.border,
+                                  backgroundColor: themeColors.background,
+                                  color: themeColors.text,
+                                }}
+                                title="Share Audio Link"
+                              >
+                                <FaShareAlt className="text-[10px]" />
+                                <span className="hidden sm:inline">Share</span>
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => onOpenResponse(resp.responseId)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border text-[11px] font-semibold"
+                              style={{
+                                borderColor: themeColors.primary,
+                                backgroundColor: themeColors.surface,
+                                color: themeColors.primary,
+                              }}
+                            >
+                              <FaEye />
+                              View / Update
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
