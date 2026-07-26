@@ -53,6 +53,13 @@ const fmtDateTime = (d) => {
   }
 };
 
+const getLocalDateString = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 const handleCopyAudioLink = (audioUrl) => {
   if (!audioUrl) {
     toast.error("Audio URL not available");
@@ -1097,6 +1104,25 @@ export default function SurveyResponses() {
   // which response is being updated for approvalStatus
   const [approvingId, setApprovingId] = useState(null);
 
+  // date filter state
+  const [selectedDate, setSelectedDate] = useState(() => getLocalDateString());
+
+  // memoized filtered surveys based on selectedDate
+  const processedSurveys = useMemo(() => {
+    if (!selectedDate) return surveys;
+    return (surveys || []).map((s) => {
+      const filteredResponses = (s.responses || []).filter((r) => {
+        if (!r.createdAt) return false;
+        const resDate = getLocalDateString(new Date(r.createdAt));
+        return resDate === selectedDate;
+      });
+      return {
+        ...s,
+        responses: filteredResponses,
+      };
+    });
+  }, [surveys, selectedDate]);
+
   const loadData = async () => {
     try {
       setLoading(true);
@@ -1139,7 +1165,7 @@ export default function SurveyResponses() {
   const filteredSummary = useMemo(() => {
     const q = search.trim().toLowerCase();
 
-    const summary = (surveys || []).map((s) => {
+    const summary = (processedSurveys || []).map((s) => {
       const responses = s.responses || [];
 
       const totalResponses = responses.length;
@@ -1196,10 +1222,10 @@ export default function SurveyResponses() {
 
       return statusOk && searchOk;
     });
-  }, [surveys, search, statusFilter]);
+  }, [processedSurveys, search, statusFilter]);
 
   const selectedSurvey =
-    surveys.find((sv) => String(sv.surveyId) === String(selectedSurveyId)) ||
+    processedSurveys.find((sv) => String(sv.surveyId) === String(selectedSurveyId)) ||
     null;
 
   const selectedResponse =
@@ -1290,7 +1316,7 @@ export default function SurveyResponses() {
   return (
     <div className="relative space-y-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-b pb-4" style={{ borderColor: themeColors.border }}>
         <div>
           <h1
             className="text-2xl md:text-3xl font-bold tracking-tight flex items-center gap-2"
@@ -1306,6 +1332,58 @@ export default function SurveyResponses() {
             Step by step dekho — pehle survey list, phir user wise entries, phir
             har entry ka detail (audio + map + answers).
           </p>
+        </div>
+
+        {/* Date Filter Controls */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div
+            className="flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold shadow-sm"
+            style={{
+              borderColor: themeColors.border,
+              backgroundColor: themeColors.surface,
+              color: themeColors.text,
+            }}
+          >
+            <span className="opacity-75">Date:</span>
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="bg-transparent border-0 outline-none text-xs focus:ring-0 cursor-pointer"
+              style={{ color: themeColors.text }}
+            />
+            {selectedDate && (
+              <button
+                onClick={() => setSelectedDate("")}
+                className="hover:text-red-500 opacity-60 hover:opacity-100 transition-opacity ml-1 font-bold"
+                title="Clear date filter (Show All)"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+          <button
+            onClick={() => setSelectedDate(getLocalDateString())}
+            className="px-3 py-1.5 rounded-lg border text-xs font-semibold hover:opacity-80 transition-all shadow-sm"
+            style={{
+              borderColor: themeColors.border,
+              backgroundColor: selectedDate === getLocalDateString() ? themeColors.primary : themeColors.surface,
+              color: selectedDate === getLocalDateString() ? "#ffffff" : themeColors.text,
+            }}
+          >
+            Today
+          </button>
+          <button
+            onClick={() => setSelectedDate("")}
+            className="px-3 py-1.5 rounded-lg border text-xs font-semibold hover:opacity-80 transition-all shadow-sm"
+            style={{
+              borderColor: themeColors.border,
+              backgroundColor: !selectedDate ? themeColors.primary : themeColors.surface,
+              color: !selectedDate ? "#ffffff" : themeColors.text,
+            }}
+          >
+            All Time
+          </button>
         </div>
       </div>
 
