@@ -27,3 +27,12 @@ export const setSurveyResponseApproval = async (
   );
   return data; // { message, response }
 };
+
+/**
+ * GET /survey/qc/responses/:responseId  ⬅️ QE single response detail on demand
+ */
+export const getSurveyResponseDetail = async (responseId) => {
+  const { data } = await http.get(`/survey/qc/responses/${responseId}`);
+  return data; // { response: { answers, ... } }
+};
+

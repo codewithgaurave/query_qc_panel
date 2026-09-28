@@ -22,6 +22,7 @@ import { useTheme } from "../context/ThemeContext";
 import {
   listAllPublicSurveyResponses,
   setSurveyResponseApproval,
+  getSurveyResponseDetail,
 } from "../apis/surveyPublic";
 
 // ⬇️ Leaflet imports for multi-pin map
@@ -177,6 +178,35 @@ function ResponseDetailPanel({
   onBack,
 }) {
   if (!survey || !response) return null;
+
+  const [loadingAnswers, setLoadingAnswers] = useState(false);
+  const [detailAnswers, setDetailAnswers] = useState(response.answers || null);
+
+  useEffect(() => {
+    if (response.answers && response.answers.length > 0) {
+      setDetailAnswers(response.answers);
+      return;
+    }
+    let isMounted = true;
+    setLoadingAnswers(true);
+    getSurveyResponseDetail(response.responseId)
+      .then((res) => {
+        if (isMounted) {
+          const ans = res?.response?.answers || [];
+          setDetailAnswers(ans);
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to fetch response answers:", err);
+      })
+      .finally(() => {
+        if (isMounted) setLoadingAnswers(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [response.responseId, response.answers]);
 
   const status = response.approvalStatus || "PENDING";
   const label = APPROVAL_LABELS[status] || status;
@@ -445,52 +475,71 @@ function ResponseDetailPanel({
 
       {/* Q&A */}
       <div className="px-4 sm:px-6 pb-4 space-y-3">
-        {(response.answers || []).map((a, qIndex) => {
-          let answerText = "-";
+        {loadingAnswers && (
+          <div className="flex items-center justify-center py-6 gap-2">
+            <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-blue-500" />
+            <span className="text-xs opacity-75" style={{ color: themeColors.text }}>
+              Loading questions & answers...
+            </span>
+          </div>
+        )}
 
-          if (a.questionType === "OPEN_ENDED") {
-            answerText = a.answerText || "-";
-          } else if (a.questionType === "RATING") {
-            answerText =
-              typeof a.rating === "number" ? String(a.rating) : "-";
-          } else {
-            const opts = a.selectedOptions || [];
-            answerText = opts.length > 0 ? opts.join(", ") : "-";
-          }
+        {!loadingAnswers &&
+          (detailAnswers || []).map((a, qIndex) => {
+            let answerText = "-";
 
-          return (
-            <div
-              key={a.questionId || qIndex}
-              className="rounded-lg border p-2.5 sm:p-3"
-              style={{
-                borderColor: themeColors.border,
-                backgroundColor: themeColors.surface,
-              }}
-            >
-              <div className="flex flex-col gap-1">
-                <p
-                  className="text-xs font-semibold"
-                  style={{ color: themeColors.text }}
-                >
-                  Q{qIndex + 1}. {a.questionText}
-                </p>
-                <p
-                  className="text-[11px] opacity-70"
-                  style={{ color: themeColors.text }}
-                >
-                  Type: {a.questionType}
-                </p>
-                <p
-                  className="text-xs mt-1"
-                  style={{ color: themeColors.text }}
-                >
-                  <span className="font-semibold">Answer: </span>
-                  {answerText}
-                </p>
+            if (a.questionType === "OPEN_ENDED") {
+              answerText = a.answerText || "-";
+            } else if (a.questionType === "RATING") {
+              answerText =
+                typeof a.rating === "number" ? String(a.rating) : "-";
+            } else {
+              const opts = a.selectedOptions || [];
+              answerText = opts.length > 0 ? opts.join(", ") : "-";
+            }
+
+            return (
+              <div
+                key={a.questionId || qIndex}
+                className="rounded-lg border p-2.5 sm:p-3"
+                style={{
+                  borderColor: themeColors.border,
+                  backgroundColor: themeColors.surface,
+                }}
+              >
+                <div className="flex flex-col gap-1">
+                  <p
+                    className="text-xs font-semibold"
+                    style={{ color: themeColors.text }}
+                  >
+                    Q{qIndex + 1}. {a.questionText}
+                  </p>
+                  <p
+                    className="text-[11px] opacity-70"
+                    style={{ color: themeColors.text }}
+                  >
+                    Type: {a.questionType}
+                  </p>
+                  <p
+                    className="text-xs mt-1"
+                    style={{ color: themeColors.text }}
+                  >
+                    <span className="font-semibold">Answer: </span>
+                    {answerText}
+                  </p>
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+
+        {!loadingAnswers && (!detailAnswers || detailAnswers.length === 0) && (
+          <p
+            className="text-xs opacity-60 text-center py-4"
+            style={{ color: themeColors.text }}
+          >
+            No questions/answers found for this response.
+          </p>
+        )}
       </div>
     </div>
   );
