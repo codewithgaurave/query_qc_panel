@@ -1123,11 +1123,12 @@ export default function SurveyResponses() {
     });
   }, [surveys, selectedDate]);
 
-  const loadData = async () => {
+  const loadData = async (dateParam = selectedDate) => {
     try {
       setLoading(true);
       setError("");
-      const res = await listAllPublicSurveyResponses();
+      const params = dateParam ? { date: dateParam } : {};
+      const res = await listAllPublicSurveyResponses(params);
       setSurveys(res.surveys || []);
     } catch (err) {
       const msg =
@@ -1142,8 +1143,8 @@ export default function SurveyResponses() {
   };
 
   useEffect(() => {
-    loadData();
-  }, []);
+    loadData(selectedDate);
+  }, [selectedDate]);
 
   // step reset helpers
   const goBackToSurveys = () => {
